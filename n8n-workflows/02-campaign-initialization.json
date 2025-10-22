@@ -1,0 +1,155 @@
+{
+  "name": "02 - Campaign Initialization",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-campaign",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "create-campaign-webhook"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {"name": "workspaceId", "value": "={{ $json.body.workspaceId }}"},
+            {"name": "brandId", "value": "={{ $json.body.brandId }}"},
+            {"name": "contactIds", "value": "={{ JSON.stringify($json.body.contactIds) }}"},
+            {"name": "messageMode", "value": "={{ $json.body.messageMode }}"},
+            {"name": "templateId", "value": "={{ $json.body.templateId || '' }}"},
+            {"name": "deliveryMode", "value": "={{ $json.body.deliveryMode }}"},
+            {"name": "campaignName", "value": "={{ $json.body.campaignName }}"}
+          ]
+        }
+      },
+      "name": "Extract Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "read",
+        "documentId": {"__rl": true, "value": "YOUR_SPREADSHEET_ID", "mode": "url"},
+        "sheetName": "Brand Configuration",
+        "range": "A:Y"
+      },
+      "name": "Load Brand Config",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [650, 200]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "read",
+        "documentId": {"__rl": true, "value": "YOUR_SPREADSHEET_ID", "mode": "url"},
+        "sheetName": "Ultimate Contact Sheet",
+        "range": "A:AT"
+      },
+      "name": "Load All Contacts",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Filter to get selected brand\nconst brandId = $node[\"Extract Parameters\"].json.brandId;\nconst brands = $input.all();\nconst selectedBrand = brands.find(brand => brand.json['Brand ID'] === brandId);\nif (!selectedBrand) throw new Error('Brand not found');\nreturn [selectedBrand];"
+      },
+      "name": "Filter Brand",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Filter contacts by IDs\nconst contactIds = JSON.parse($node[\"Extract Parameters\"].json.contactIds);\nconst allContacts = $input.all();\nconst selected = allContacts.filter(c => contactIds.includes(c.json['Contact ID']));\nif (selected.length === 0) throw new Error('No contacts found');\nreturn selected;"
+      },
+      "name": "Filter Selected Contacts",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "read",
+        "documentId": {"__rl": true, "value": "YOUR_SPREADSHEET_ID", "mode": "url"},
+        "sheetName": "Send History Log",
+        "range": "A:AB"
+      },
+      "name": "Load Send History",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// FREQUENCY VALIDATION\nconst contacts = $node[\"Filter Selected Contacts\"].json;\nconst sendHistory = $input.all();\nconst now = new Date();\n\nconst validatedContacts = contacts.map(contact => {\n  const email = contact.json['Email'];\n  const contactSends = sendHistory.filter(s => s.json['Contact Email'] === email);\n  \n  const last24h = contactSends.filter(s => {\n    const sentAt = new Date(s.json['Actual Send Time']);\n    return (now - sentAt) <= 24 * 60 * 60 * 1000;\n  }).length;\n  \n  const last7d = contactSends.filter(s => {\n    const sentAt = new Date(s.json['Actual Send Time']);\n    return (now - sentAt) <= 7 * 24 * 60 * 60 * 1000;\n  }).length;\n  \n  let valid = true;\n  let blockReason = '';\n  \n  if (last24h >= 1) {\n    valid = false;\n    blockReason = 'Exceeded 24-hour limit';\n  } else if (last7d >= 3) {\n    valid = false;\n    blockReason = 'Exceeded 7-day limit';\n  }\n  \n  return {...contact.json, valid, blockReason, last24h, last7d};\n});\n\nconst validContacts = validatedContacts.filter(c => c.valid);\nconst blockedContacts = validatedContacts.filter(c => !c.valid);\n\nreturn [{json: {validContacts, blockedContacts, totalContacts: validatedContacts.length}}];"
+      },
+      "name": "Frequency Validation",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate campaign ID\nconst campaignId = 'CMP-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).substr(2,5).toUpperCase();\nconst params = $node[\"Extract Parameters\"].json;\nconst brand = $node[\"Filter Brand\"].json;\nconst validation = $node[\"Frequency Validation\"].json;\n\nreturn [{json: {\n  campaignId,\n  campaignName: params.campaignName,\n  brandId: params.brandId,\n  brandName: brand['Brand Name'],\n  validContacts: validation.validContacts,\n  blockedContacts: validation.blockedContacts,\n  status: 'ready',\n  createdAt: new Date().toISOString()\n}}];"
+      },
+      "name": "Create Campaign Object",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "personalAccessToken",
+        "operation": "create",
+        "baseId": "YOUR_AIRTABLE_BASE_ID",
+        "tableId": "tblCampaigns",
+        "fields": {
+          "field": [
+            {"fieldId": "Campaign ID", "fieldValue": "={{ $json.campaignId }}"},
+            {"fieldId": "Campaign Name", "fieldValue": "={{ $json.campaignName }}"},
+            {"fieldId": "Status", "fieldValue": "={{ $json.status }}"},
+            {"fieldId": "Total Contacts", "fieldValue": "={{ $json.validContacts.length }}"},
+            {"fieldId": "Created At", "fieldValue": "={{ $json.createdAt }}"}
+          ]
+        }
+      },
+      "name": "Create Campaign in Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success: true, campaignId: $json.campaignId, validContacts: $json.validContacts.length, blockedContacts: $json.blockedContacts.length}) }}"
+      },
+      "name": "Response to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {"main": [[{"node": "Extract Parameters", "type": "main", "index": 0}]]},
+    "Extract Parameters": {"main": [[{"node": "Load Brand Config", "type": "main", "index": 0}, {"node": "Load All Contacts", "type": "main", "index": 0}]]},
+    "Load Brand Config": {"main": [[{"node": "Filter Brand", "type": "main", "index": 0}]]},
+    "Load All Contacts": {"main": [[{"node": "Filter Selected Contacts", "type": "main", "index": 0}]]},
+    "Filter Brand": {"main": [[{"node": "Load Send History", "type": "main", "index": 0}]]},
+    "Filter Selected Contacts": {"main": [[{"node": "Load Send History", "type": "main", "index": 0}]]},
+    "Load Send History": {"main": [[{"node": "Frequency Validation", "type": "main", "index": 0}]]},
+    "Frequency Validation": {"main": [[{"node": "Create Campaign Object", "type": "main", "index": 0}]]},
+    "Create Campaign Object": {"main": [[{"node": "Create Campaign in Airtable", "type": "main", "index": 0}]]},
+    "Create Campaign in Airtable": {"main": [[{"node": "Response to Webhook", "type": "main", "index": 0}]]}
+  }
+}

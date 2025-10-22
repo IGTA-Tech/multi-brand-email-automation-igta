@@ -1,0 +1,30 @@
+{
+  "name": "multi-brand-email-automation-igta",
+  "version": "1.0.0",
+  "description": "Complete multi-brand email automation system with AI personalization, intelligent frequency controls, and comprehensive tracking",
+  "keywords": [
+    "email",
+    "automation",
+    "multi-brand",
+    "n8n",
+    "claude",
+    "ai",
+    "marketing",
+    "crm"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IGTA-Tech/multi-brand-email-automation-igta.git"
+  },
+  "author": "IGTA Tech",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "deploy": "./scripts/deploy.sh",
+    "start:tracking": "cd tracking-server && npm start",
+    "dev:tracking": "cd tracking-server && npm run dev",
+    "test": "cd tracking-server && npm test"
+  }
+}

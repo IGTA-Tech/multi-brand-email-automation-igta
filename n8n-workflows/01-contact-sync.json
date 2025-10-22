@@ -1,0 +1,144 @@
+{
+  "name": "01 - Contact Sync: Sheets to Airtable",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "hours", "hoursInterval": 1}]
+        }
+      },
+      "name": "Schedule Trigger (Every Hour)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "url"
+        },
+        "sheetName": "Ultimate Contact Sheet",
+        "range": "A2:AT10000"
+      },
+      "name": "Read Contact Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const items = $input.all();\nconst now = new Date();\nconst oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);\n\nconst recentlyUpdated = items.filter(item => {\n  const lastUpdated = item.json['Last Updated'];\n  if (!lastUpdated) return false;\n  const updatedDate = new Date(lastUpdated);\n  return updatedDate >= oneHourAgo;\n});\n\nreturn recentlyUpdated;"
+      },
+      "name": "Filter Last Hour Updates",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {},
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "personalAccessToken",
+        "operation": "list",
+        "baseId": "YOUR_AIRTABLE_BASE_ID",
+        "tableId": "tblContacts",
+        "options": {
+          "filterByFormula": "={Email} = '{{ $json[\"Email\"] }}'"
+        }
+      },
+      "name": "Check Contact Exists in Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.records.length }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "name": "IF Contact Exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "personalAccessToken",
+        "operation": "update",
+        "baseId": "YOUR_AIRTABLE_BASE_ID",
+        "tableId": "tblContacts",
+        "id": "={{ $node[\"Check Contact Exists in Airtable\"].json.records[0].id }}",
+        "fields": {
+          "field": [
+            {"fieldId": "First Name", "fieldValue": "={{ $node[\"Loop Over Items\"].json[\"First Name\"] }}"},
+            {"fieldId": "Last Name", "fieldValue": "={{ $node[\"Loop Over Items\"].json[\"Last Name\"] }}"},
+            {"fieldId": "Lead Status", "fieldValue": "={{ $node[\"Loop Over Items\"].json[\"Lead Status\"] }}"},
+            {"fieldId": "Lead Score", "fieldValue": "={{ $node[\"Loop Over Items\"].json[\"Lead Score\"] }}"},
+            {"fieldId": "Last Updated", "fieldValue": "={{ $now.toISO() }}"}
+          ]
+        }
+      },
+      "name": "Update Existing Contact",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "authentication": "personalAccessToken",
+        "operation": "create",
+        "baseId": "YOUR_AIRTABLE_BASE_ID",
+        "tableId": "tblContacts",
+        "fields": {
+          "field": [
+            {"fieldId": "Contact ID", "fieldValue": "={{ $node[\"Loop Over Items\"].json[\"Contact ID\"] }}"},
+            {"fieldId": "First Name", "fieldValue": "={{ $node[\"Loop Over Items\"].json[\"First Name\"] }}"},
+            {"fieldId": "Last Name", "fieldValue": "={{ $node[\"Loop Over Items\"].json[\"Last Name\"] }}"},
+            {"fieldId": "Email", "fieldValue": "={{ $node[\"Loop Over Items\"].json[\"Email\"] }}"},
+            {"fieldId": "Created At", "fieldValue": "={{ $now.toISO() }}"}
+          ]
+        }
+      },
+      "name": "Create New Contact",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1450, 400]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Every Hour)": {"main": [[{"node": "Read Contact Sheet", "type": "main", "index": 0}]]},
+    "Read Contact Sheet": {"main": [[{"node": "Filter Last Hour Updates", "type": "main", "index": 0}]]},
+    "Filter Last Hour Updates": {"main": [[{"node": "Loop Over Items", "type": "main", "index": 0}]]},
+    "Loop Over Items": {"main": [[{"node": "Check Contact Exists in Airtable", "type": "main", "index": 0}]]},
+    "Check Contact Exists in Airtable": {"main": [[{"node": "IF Contact Exists", "type": "main", "index": 0}]]},
+    "IF Contact Exists": {
+      "main": [
+        [{"node": "Update Existing Contact", "type": "main", "index": 0}],
+        [{"node": "Create New Contact", "type": "main", "index": 0}]
+      ]
+    },
+    "Update Existing Contact": {"main": [[{"node": "Loop Over Items", "type": "main", "index": 0}]]},
+    "Create New Contact": {"main": [[{"node": "Loop Over Items", "type": "main", "index": 0}]]}
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-22T00:00:00.000Z",
+  "versionId": "1"
+}

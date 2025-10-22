@@ -1,0 +1,143 @@
+{
+  "systemName": "Multi-Brand Email Automation - IGTA Version",
+  "version": "1.0.0",
+  "description": "Complete email automation system with multi-brand support, AI generation, and intelligent frequency controls",
+
+  "googleSheets": {
+    "spreadsheetId": "YOUR_SPREADSHEET_ID_HERE",
+    "sheets": {
+      "contacts": "Ultimate Contact Sheet",
+      "sendHistory": "Send History Log",
+      "campaignQueue": "Campaign Queue",
+      "brandConfig": "Brand Configuration",
+      "templates": "Template Library",
+      "lidoQueue": "Lido Send Queue"
+    },
+    "apiLimits": {
+      "requestsPerMinutePerUser": 60,
+      "requestsPerDayPerUser": 500000
+    }
+  },
+
+  "airtable": {
+    "baseId": "YOUR_AIRTABLE_BASE_ID_HERE",
+    "tables": {
+      "contacts": "tblContacts",
+      "brands": "tblBrands",
+      "campaigns": "tblCampaigns",
+      "campaignQueue": "tblCampaignQueue",
+      "templates": "tblTemplates",
+      "sendHistory": "tblSendHistory"
+    },
+    "apiLimits": {
+      "requestsPerSecond": 5
+    }
+  },
+
+  "n8n": {
+    "baseUrl": "https://your-n8n-domain.com",
+    "webhooks": {
+      "createCampaign": "/webhook/create-campaign",
+      "emailOpened": "/webhook/email-opened",
+      "emailClicked": "/webhook/email-clicked",
+      "emailSent": "/webhook/email-sent",
+      "emailFailed": "/webhook/email-failed",
+      "syncToAirtable": "/webhook/sync-to-airtable",
+      "generateEmail": "/webhook/generate-email"
+    },
+    "workflows": [
+      "01-contact-sync",
+      "02-campaign-initialization",
+      "03-execute-queue",
+      "04-track-opens",
+      "05-claude-generation",
+      "06-auto-pilot"
+    ]
+  },
+
+  "claude": {
+    "model": "claude-sonnet-4-20250514",
+    "maxTokens": 1000,
+    "temperature": 0.7,
+    "pricing": {
+      "inputPerMillion": 3.0,
+      "outputPerMillion": 15.0
+    }
+  },
+
+  "lido": {
+    "spreadsheetUrl": "YOUR_LIDO_SPREADSHEET_URL",
+    "automations": {
+      "sendEmail": "Send Email from Queue",
+      "trackOpens": "Track Email Opens",
+      "trackClicks": "Track Email Clicks"
+    }
+  },
+
+  "frequencyLimits": {
+    "hardLimits": {
+      "hours24": 1,
+      "days7": 3,
+      "days30": 10
+    },
+    "softLimits": {
+      "days7": 2,
+      "days30": 8
+    },
+    "engagementModifiers": {
+      "high": {
+        "threshold": 70,
+        "days7": 4,
+        "days30": 15
+      },
+      "low": {
+        "threshold": 20,
+        "days7": 2,
+        "days30": 6
+      }
+    }
+  },
+
+  "workspaces": [
+    {
+      "id": "workspace1",
+      "email": "workspace1@yourdomain.com",
+      "name": "Primary Workspace",
+      "active": true
+    },
+    {
+      "id": "workspace2",
+      "email": "workspace2@yourdomain.com",
+      "name": "Secondary Workspace",
+      "active": true
+    },
+    {
+      "id": "workspace3",
+      "email": "workspace3@yourdomain.com",
+      "name": "Regional Workspace",
+      "active": true
+    }
+  ],
+
+  "trackingServer": {
+    "url": "https://your-tracking-domain.com",
+    "port": 3000,
+    "endpoints": {
+      "pixel": "/track/pixel",
+      "click": "/track/click",
+      "health": "/health"
+    }
+  },
+
+  "security": {
+    "webhookSecret": "CHANGE_THIS_TO_A_SECURE_RANDOM_STRING",
+    "apiKeyEncryption": true,
+    "useHttps": true
+  },
+
+  "monitoring": {
+    "enabled": true,
+    "logRetentionDays": 30,
+    "alertEmail": "admin@yourdomain.com"
+  }
+}

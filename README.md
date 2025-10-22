@@ -364,35 +364,47 @@ Adapts tone to lead score
 
 ## 🔄 Workflows
 
+The system uses 6 interconnected n8n workflows to automate the entire email campaign lifecycle.
+
+**📚 [View Complete Workflows Documentation](./docs/WORKFLOWS.md)**
+
 ### Workflow 1: Contact Sync
+- **File**: `n8n-workflows/01-contact-sync.json`
 - **Trigger**: CRON (hourly)
-- **Purpose**: Sync Google Sheets → Airtable
+- **Purpose**: Bidirectional sync Google Sheets ↔ Airtable
 - **Duration**: ~2-5 minutes for 1000 contacts
 
 ### Workflow 2: Campaign Initialization
+- **File**: `n8n-workflows/02-campaign-initialization.json`
 - **Trigger**: Webhook (manual/UI)
-- **Purpose**: Create campaign, validate, queue
+- **Purpose**: Create campaign, validate frequency, queue emails
 - **Duration**: ~10-30 seconds
 
 ### Workflow 3: Execute Campaign Queue
+- **File**: `n8n-workflows/03-execute-queue.json`
 - **Trigger**: CRON (every 5 minutes)
-- **Purpose**: Process queue, send to Lido
+- **Purpose**: Process queue, re-validate, send to Lido
 - **Duration**: ~1-2 minutes per batch (50 emails)
 
 ### Workflow 4: Track Email Opens
-- **Trigger**: Webhook (from Lido)
-- **Purpose**: Update metrics on open
+- **File**: `n8n-workflows/04-track-opens.json`
+- **Trigger**: Webhook (from tracking server)
+- **Purpose**: Update metrics on open, calculate engagement
 - **Duration**: <1 second per event
 
 ### Workflow 5: Claude Email Generation
-- **Trigger**: Called by Workflow 2
-- **Purpose**: Generate personalized emails
+- **File**: `n8n-workflows/05-claude-generation.json`
+- **Trigger**: Called by Workflow 2 and 6
+- **Purpose**: Generate personalized AI emails with brand voice
 - **Duration**: ~2-5 seconds per email
 
 ### Workflow 6: Auto-Pilot Campaign Generator
+- **File**: `n8n-workflows/06-auto-pilot.json`
 - **Trigger**: CRON (daily at 9am)
-- **Purpose**: Auto-create campaigns for stale leads
+- **Purpose**: Auto-identify stale leads and create campaigns
 - **Duration**: ~5-10 minutes
+
+**💡 All workflows include complete error handling, logging, and retry logic. See [WORKFLOWS.md](./docs/WORKFLOWS.md) for detailed flow diagrams, configuration, and troubleshooting.**
 
 ## 📡 API Documentation
 

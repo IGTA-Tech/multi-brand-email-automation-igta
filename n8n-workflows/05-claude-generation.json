@@ -1,0 +1,223 @@
+{
+  "name": "05-claude-email-generation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-email",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "claude-generation-webhook",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Webhook Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract parameters from webhook\nconst contactData = $input.item.json.body.contact;\nconst brandData = $input.item.json.body.brand;\nconst campaignGoal = $input.item.json.body.campaign_goal || 'general outreach';\nconst additionalContext = $input.item.json.body.additional_context || '';\n\nreturn {\n  json: {\n    contact: contactData,\n    brand: brandData,\n    campaignGoal,\n    additionalContext\n  }\n};"
+      },
+      "name": "Extract Parameters",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Build the system prompt for Claude\nconst contact = $input.item.json.contact;\nconst brand = $input.item.json.brand;\nconst goal = $input.item.json.campaignGoal;\nconst context = $input.item.json.additionalContext;\n\n// Brand voice guidelines\nconst brandVoice = brand.voice_guidelines || 'Professional and friendly';\nconst brandTone = brand.tone || 'conversational';\n\n// Contact details\nconst firstName = contact.first_name || 'there';\nconst leadStatus = contact.lead_status || 'Contact';\nconst leadScore = parseInt(contact.lead_score || '5');\nconst company = contact.company || '';\nconst industry = contact.industry || '';\nconst notes = contact.notes || '';\nconst recentActivity = contact.recent_activity || '';\n\n// Adjust tone based on lead score\nlet toneAdjustment = '';\nif (leadScore >= 8) {\n  toneAdjustment = 'This is a HOT lead (score ' + leadScore + '/10). Be enthusiastic and action-oriented. Create urgency.';\n} else if (leadScore >= 5) {\n  toneAdjustment = 'This is a WARM lead (score ' + leadScore + '/10). Be engaging and informative. Build interest.';\n} else {\n  toneAdjustment = 'This is a COLD lead (score ' + leadScore + '/10). Be gentle and educational. Build trust first.';\n}\n\n// Build the complete system prompt\nconst systemPrompt = `You are an expert email copywriter for ${brand.brand_name}.\n\nBRAND VOICE:\n${brandVoice}\n\nBRAND TONE:\n${brandTone}\n\nCONTACT INFORMATION:\n- Name: ${firstName}\n- Lead Status: ${leadStatus}\n- Lead Score: ${leadScore}/10\n- Company: ${company}\n- Industry: ${industry}\n- Notes: ${notes}\n- Recent Activity: ${recentActivity}\n\nTONE ADJUSTMENT:\n${toneAdjustment}\n\nCAMPAIGN GOAL:\n${goal}\n\nADDITIONAL CONTEXT:\n${context}\n\nYOUR TASK:\nGenerate a personalized email with:\n1. A compelling subject line (max 60 characters)\n2. Email body (150-300 words)\n3. Clear call-to-action\n4. Professional sign-off\n\nIMPORTANT:\n- Use the recipient's first name naturally\n- Reference their company/industry if relevant\n- Match the brand voice exactly\n- Adjust tone based on lead score\n- Keep it conversational and human\n- Avoid overly salesy language\n- No generic templates\n\nRETURN FORMAT:\nYou MUST return ONLY valid JSON in exactly this format:\n{\n  \"subject\": \"Your subject line here\",\n  \"body\": \"Your email body here with <br><br> for line breaks\"\n}\n\nDo not include any other text, explanations, or markdown. Just the JSON.`;\n\nreturn {\n  json: {\n    systemPrompt,\n    firstName,\n    brandName: brand.brand_name,\n    leadScore\n  }\n};"
+      },
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "apiKey",
+        "resource": "message",
+        "model": "claude-sonnet-4-20250514",
+        "messages": {
+          "values": [
+            {
+              "role": "user",
+              "content": "={{$json['systemPrompt']}}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 1024,
+          "temperature": 0.7
+        }
+      },
+      "name": "Call Claude API",
+      "type": "n8n-nodes-base.anthropic",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "credentials": {
+        "anthropicApi": {
+          "id": "4",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse Claude's response\nconst claudeResponse = $input.item.json.content[0].text;\n\ntry {\n  // Try to parse JSON response\n  const parsed = JSON.parse(claudeResponse);\n  \n  // Validate structure\n  if (!parsed.subject || !parsed.body) {\n    throw new Error('Invalid response structure');\n  }\n  \n  // Get metadata\n  const firstName = $node['Build Claude Prompt'].json.firstName;\n  const brandName = $node['Build Claude Prompt'].json.brandName;\n  const leadScore = $node['Build Claude Prompt'].json.leadScore;\n  \n  return {\n    json: {\n      success: true,\n      subject: parsed.subject,\n      body: parsed.body,\n      metadata: {\n        generatedAt: new Date().toISOString(),\n        model: 'claude-sonnet-4-20250514',\n        firstName,\n        brandName,\n        leadScore\n      }\n    }\n  };\n} catch (error) {\n  // If JSON parsing fails, try to extract from text\n  console.log('Failed to parse JSON, attempting text extraction');\n  \n  // Try to find subject and body in text\n  const subjectMatch = claudeResponse.match(/\"subject\"\\s*:\\s*\"([^\"]+)\"/i);\n  const bodyMatch = claudeResponse.match(/\"body\"\\s*:\\s*\"([^\"]+)\"/i);\n  \n  if (subjectMatch && bodyMatch) {\n    return {\n      json: {\n        success: true,\n        subject: subjectMatch[1],\n        body: bodyMatch[1].replace(/\\\\n/g, '<br>'),\n        metadata: {\n          generatedAt: new Date().toISOString(),\n          model: 'claude-sonnet-4-20250514',\n          parseMethod: 'regex'\n        }\n      }\n    };\n  }\n  \n  // If all parsing fails, return error\n  return {\n    json: {\n      success: false,\n      error: 'Could not parse Claude response',\n      rawResponse: claudeResponse\n    }\n  };\n}"
+      },
+      "name": "Parse Claude Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json['success']}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Check Parse Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"success\": true, \"subject\": \"{{$json['subject']}}\", \"body\": \"{{$json['body']}}\", \"metadata\": {{$json['metadata']}}}",
+        "options": {}
+      },
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"success\": false, \"error\": \"{{$json['error']}}\", \"rawResponse\": \"{{$json['rawResponse']}}\"}",
+        "responseCode": 500,
+        "options": {}
+      },
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log generation for analytics\nconst generationLog = {\n  timestamp: new Date().toISOString(),\n  contactEmail: $node['Extract Parameters'].json.contact.email,\n  brandId: $node['Extract Parameters'].json.brand.brand_id,\n  campaignGoal: $node['Extract Parameters'].json.campaignGoal,\n  subjectLength: $input.item.json.subject.length,\n  bodyLength: $input.item.json.body.length,\n  leadScore: $node['Build Claude Prompt'].json.leadScore,\n  model: 'claude-sonnet-4-20250514',\n  success: true\n};\n\nconsole.log('Claude Generation Log:', JSON.stringify(generationLog));\n\nreturn $input.all();"
+      },
+      "name": "Log Generation",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1450, 100]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Parameters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Parameters": {
+      "main": [
+        [
+          {
+            "node": "Build Claude Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Claude Prompt": {
+      "main": [
+        [
+          {
+            "node": "Call Claude API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Claude API": {
+      "main": [
+        [
+          {
+            "node": "Parse Claude Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Claude Response": {
+      "main": [
+        [
+          {
+            "node": "Check Parse Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Parse Success": {
+      "main": [
+        [
+          {
+            "node": "Log Generation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Generation": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-22T00:00:00.000Z",
+  "versionId": "1"
+}

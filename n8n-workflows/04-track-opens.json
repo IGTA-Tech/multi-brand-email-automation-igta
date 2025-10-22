@@ -1,0 +1,440 @@
+{
+  "name": "04-track-email-opens",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "email-opened",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "email-opened-webhook",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Webhook Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract webhook data\nconst queueId = $input.item.json.body.queue_id;\nconst contactEmail = $input.item.json.body.contact_email;\nconst campaignId = $input.item.json.body.campaign_id;\nconst openedAt = $input.item.json.body.opened_at || new Date().toISOString();\n\n// Return formatted data\nreturn {\n  json: {\n    queueId,\n    contactEmail,\n    campaignId,\n    openedAt,\n    eventType: 'open'\n  }\n};"
+      },
+      "name": "Extract Open Event Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Send History Log"
+        },
+        "range": "A:Z",
+        "options": {}
+      },
+      "name": "Load Send History",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [650, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json['Queue ID']}}",
+              "operation": "equals",
+              "value2": "={{$node['Extract Open Event Data'].json['queueId']}}"
+            }
+          ]
+        }
+      },
+      "name": "Find Matching Send Record",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get the send history record\nconst sendRecord = $input.item.json;\nconst openEvent = $node['Extract Open Event Data'].json;\n\n// Check if this is first open\nconst isFirstOpen = !sendRecord['First Open Timestamp'] || sendRecord['First Open Timestamp'] === '';\n\n// Update open count\nconst currentOpenCount = parseInt(sendRecord['Open Count'] || '0');\nconst newOpenCount = currentOpenCount + 1;\n\n// Calculate engagement score\n// Formula: (opens * 10) + (clicks * 20) + (replies * 30)\nconst opens = newOpenCount;\nconst clicks = parseInt(sendRecord['Click Count'] || '0');\nconst replies = parseInt(sendRecord['Reply Count'] || '0');\nconst engagementScore = (opens * 10) + (clicks * 20) + (replies * 30);\n\nreturn {\n  json: {\n    'Queue ID': openEvent.queueId,\n    'Open Count': newOpenCount.toString(),\n    'First Open Timestamp': isFirstOpen ? openEvent.openedAt : sendRecord['First Open Timestamp'],\n    'Last Open Timestamp': openEvent.openedAt,\n    'Engagement Score': engagementScore.toString(),\n    'Status': 'opened',\n    isFirstOpen\n  }\n};"
+      },
+      "name": "Calculate Updated Metrics",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Send History Log"
+        },
+        "options": {
+          "lookupColumn": "Queue ID",
+          "lookupValue": "={{$json['Queue ID']}}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Open Count": "={{$json['Open Count']}}",
+            "First Open Timestamp": "={{$json['First Open Timestamp']}}",
+            "Last Open Timestamp": "={{$json['Last Open Timestamp']}}",
+            "Engagement Score": "={{$json['Engagement Score']}}",
+            "Status": "={{$json['Status']}}"
+          }
+        }
+      },
+      "name": "Update Send History in Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1250, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "baseId": "YOUR_AIRTABLE_BASE_ID",
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Send History"
+        },
+        "filterByFormula": "={Queue ID} = '{{$node['Extract Open Event Data'].json['queueId']}}'",
+        "options": {}
+      },
+      "name": "Find Airtable Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1250, 150],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "3",
+          "name": "Airtable Personal Access Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "baseId": "YOUR_AIRTABLE_BASE_ID",
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Send History"
+        },
+        "updateAllFields": false,
+        "fields": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Open Count": "={{$node['Calculate Updated Metrics'].json['Open Count']}}",
+            "First Open Timestamp": "={{$node['Calculate Updated Metrics'].json['First Open Timestamp']}}",
+            "Last Open Timestamp": "={{$node['Calculate Updated Metrics'].json['Last Open Timestamp']}}",
+            "Engagement Score": "={{$node['Calculate Updated Metrics'].json['Engagement Score']}}",
+            "Status": "opened"
+          }
+        },
+        "options": {}
+      },
+      "name": "Update Airtable Send History",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1450, 150],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "3",
+          "name": "Airtable Personal Access Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$node['Calculate Updated Metrics'].json['isFirstOpen']}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "If First Open",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Ultimate Contact Sheet"
+        },
+        "range": "A:Z",
+        "options": {}
+      },
+      "name": "Load Contact Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1650, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json['Email']}}",
+              "operation": "equals",
+              "value2": "={{$node['Extract Open Event Data'].json['contactEmail']}}"
+            }
+          ]
+        }
+      },
+      "name": "Find Contact",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [1850, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Update contact engagement stats\nconst contact = $input.item.json;\nconst currentTotalOpens = parseInt(contact['Total Opens'] || '0');\nconst currentEngagement = parseFloat(contact['Engagement Score'] || '0');\n\n// Increment opens\nconst newTotalOpens = currentTotalOpens + 1;\n\n// Recalculate engagement score\n// Simple formula: (total_opens * 5) + (total_clicks * 10)\nconst totalClicks = parseInt(contact['Total Clicks'] || '0');\nconst newEngagement = (newTotalOpens * 5) + (totalClicks * 10);\n\nreturn {\n  json: {\n    'Email': contact['Email'],\n    'Total Opens': newTotalOpens.toString(),\n    'Engagement Score': newEngagement.toString(),\n    'Last Engagement Date': new Date().toISOString()\n  }\n};"
+      },
+      "name": "Update Contact Engagement",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2050, 200]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Ultimate Contact Sheet"
+        },
+        "options": {
+          "lookupColumn": "Email",
+          "lookupValue": "={{$json['Email']}}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Total Opens": "={{$json['Total Opens']}}",
+            "Engagement Score": "={{$json['Engagement Score']}}",
+            "Last Engagement Date": "={{$json['Last Engagement Date']}}"
+          }
+        }
+      },
+      "name": "Update Contact in Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [2250, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"success\": true, \"message\": \"Open tracked successfully\", \"queueId\": \"{{$node['Extract Open Event Data'].json['queueId']}}\"}",
+        "options": {}
+      },
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2450, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Open Event Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Open Event Data": {
+      "main": [
+        [
+          {
+            "node": "Load Send History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Send History": {
+      "main": [
+        [
+          {
+            "node": "Find Matching Send Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Matching Send Record": {
+      "main": [
+        [
+          {
+            "node": "Calculate Updated Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Updated Metrics": {
+      "main": [
+        [
+          {
+            "node": "Update Send History in Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Find Airtable Record",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If First Open",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Airtable Record": {
+      "main": [
+        [
+          {
+            "node": "Update Airtable Send History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If First Open": {
+      "main": [
+        [
+          {
+            "node": "Load Contact Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Contact Sheet": {
+      "main": [
+        [
+          {
+            "node": "Find Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Contact": {
+      "main": [
+        [
+          {
+            "node": "Update Contact Engagement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Contact Engagement": {
+      "main": [
+        [
+          {
+            "node": "Update Contact in Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Contact in Sheets": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  ],
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-22T00:00:00.000Z",
+  "versionId": "1"
+}

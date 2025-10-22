@@ -1,0 +1,362 @@
+{
+  "name": "03-execute-campaign-queue",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/5 * * * *"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger (Every 5 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Campaign Queue"
+        },
+        "range": "A:Z",
+        "options": {}
+      },
+      "name": "Read Campaign Queue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [450, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json[\"Status\"]}}",
+              "operation": "equals",
+              "value2": "ready"
+            },
+            {
+              "value1": "={{$json[\"Scheduled Send Time\"]}}",
+              "operation": "isNotEmpty"
+            }
+          ],
+          "dateTime": [
+            {
+              "value1": "={{$json[\"Scheduled Send Time\"]}}",
+              "operation": "before",
+              "value2": "={{new Date().toISOString()}}"
+            }
+          ]
+        },
+        "combineOperation": "all"
+      },
+      "name": "Filter Ready to Send",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Get contact and campaign data\nconst queueId = $input.item.json['Queue ID'];\nconst contactId = $input.item.json['Contact ID'];\nconst campaignId = $input.item.json['Campaign ID'];\nconst brandId = $input.item.json['Brand ID'];\nconst subject = $input.item.json['Subject Line'];\nconst body = $input.item.json['Email Body'];\nconst contactEmail = $input.item.json['Contact Email'];\nconst contactName = $input.item.json['Contact Name'];\n\n// Get send history from workflow static data\nconst sendHistory = $('Load Send History').all();\n\n// Filter send history for this contact\nconst contactHistory = sendHistory.filter(item => \n  item.json['Contact Email'] === contactEmail\n);\n\n// Calculate frequency counts\nconst now = new Date();\nconst oneDayAgo = new Date(now - 24 * 60 * 60 * 1000);\nconst sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);\nconst thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);\n\nlet count24h = 0;\nlet count7d = 0;\nlet count30d = 0;\n\ncontactHistory.forEach(item => {\n  const sentDate = new Date(item.json['Sent Timestamp']);\n  if (sentDate > oneDayAgo) count24h++;\n  if (sentDate > sevenDaysAgo) count7d++;\n  if (sentDate > thirtyDaysAgo) count30d++;\n});\n\n// Check frequency limits\nconst MAX_24H = 1;\nconst MAX_7D = 3;\nconst MAX_30D = 10;\n\nconst canSend = count24h < MAX_24H && count7d < MAX_7D && count30d < MAX_30D;\n\nif (!canSend) {\n  return {\n    json: {\n      queueId,\n      contactEmail,\n      status: 'blocked',\n      reason: `Frequency limit exceeded: ${count24h}/24h, ${count7d}/7d, ${count30d}/30d`,\n      blockAction: 'skip'\n    }\n  };\n}\n\n// Generate tracking pixel URL\nconst trackingBaseUrl = 'https://YOUR_TRACKING_DOMAIN';\nconst encodedEmail = Buffer.from(contactEmail).toString('base64');\nconst pixelUrl = `${trackingBaseUrl}/track/pixel?q=${queueId}&c=${campaignId}&e=${encodedEmail}`;\n\n// Insert pixel at end of email body\nconst bodyWithTracking = body + `<img src=\"${pixelUrl}\" width=\"1\" height=\"1\" alt=\"\" />`;\n\n// Prepare for Lido Send Queue\nreturn {\n  json: {\n    'Queue ID': queueId,\n    'Campaign ID': campaignId,\n    'Brand ID': brandId,\n    'Contact ID': contactId,\n    'Contact Email': contactEmail,\n    'Contact Name': contactName,\n    'Subject Line': subject,\n    'Email Body': bodyWithTracking,\n    'From Email': $input.item.json['From Email'],\n    'From Name': $input.item.json['From Name'],\n    'Status': 'queued_for_send',\n    'Queued At': new Date().toISOString(),\n    'Tracking Pixel': pixelUrl,\n    'Frequency 24h': count24h,\n    'Frequency 7d': count7d,\n    'Frequency 30d': count30d\n  }\n};"
+      },
+      "name": "Re-Validate Frequency & Prepare",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Send History Log"
+        },
+        "range": "A:Z",
+        "options": {}
+      },
+      "name": "Load Send History",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [850, 150],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json[\"status\"]}}",
+              "operation": "notEquals",
+              "value2": "blocked"
+            }
+          ]
+        }
+      },
+      "name": "Filter Not Blocked",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Lido Send Queue"
+        },
+        "options": {}
+      },
+      "name": "Write to Lido Send Queue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1450, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Campaign Queue"
+        },
+        "options": {
+          "lookupColumn": "Queue ID",
+          "lookupValue": "={{$json['Queue ID']}}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "processing"
+          }
+        }
+      },
+      "name": "Update Queue Status Processing",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1650, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json[\"status\"]}}",
+              "operation": "equals",
+              "value2": "blocked"
+            }
+          ]
+        }
+      },
+      "name": "Filter Blocked",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [1250, 500]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Campaign Queue"
+        },
+        "options": {
+          "lookupColumn": "Queue ID",
+          "lookupValue": "={{$json['queueId']}}"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "blocked",
+            "Block Reason": "={{$json['reason']}}"
+          }
+        }
+      },
+      "name": "Update Queue Status Blocked",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1450, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Every 5 min)": {
+      "main": [
+        [
+          {
+            "node": "Read Campaign Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Campaign Queue": {
+      "main": [
+        [
+          {
+            "node": "Filter Ready to Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Ready to Send": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Load Send History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Re-Validate Frequency & Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-Validate Frequency & Prepare": {
+      "main": [
+        [
+          {
+            "node": "Filter Not Blocked",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter Blocked",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Not Blocked": {
+      "main": [
+        [
+          {
+            "node": "Write to Lido Send Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to Lido Send Queue": {
+      "main": [
+        [
+          {
+            "node": "Update Queue Status Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Blocked": {
+      "main": [
+        [
+          {
+            "node": "Update Queue Status Blocked",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-22T00:00:00.000Z",
+  "versionId": "1"
+}

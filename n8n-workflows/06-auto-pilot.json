@@ -1,0 +1,449 @@
+{
+  "name": "06-auto-pilot-campaign-generator",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger (Daily 9am)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Ultimate Contact Sheet"
+        },
+        "range": "A:Z",
+        "options": {}
+      },
+      "name": "Load All Contacts",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [450, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Send History Log"
+        },
+        "range": "A:Z",
+        "options": {}
+      },
+      "name": "Load Send History",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [450, 450],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Identify stale hot leads that need follow-up\nconst contacts = $('Load All Contacts').all();\nconst sendHistory = $('Load Send History').all();\n\nconst staleLeads = [];\nconst now = new Date();\nconst STALE_DAYS = 7; // No contact in 7 days\n\nfor (const contactItem of contacts) {\n  const contact = contactItem.json;\n  \n  // Only consider hot leads (score >= 8) or warm leads (score >= 6)\n  const leadScore = parseInt(contact['Lead Score'] || '0');\n  if (leadScore < 6) continue;\n  \n  // Check lead status\n  const leadStatus = contact['Lead Status'] || '';\n  if (leadStatus === 'Customer' || leadStatus === 'Unsubscribed') continue;\n  \n  // Find last communication with this contact\n  const contactEmail = contact['Email'];\n  const contactHistory = sendHistory.filter(item => \n    item.json['Contact Email'] === contactEmail\n  );\n  \n  if (contactHistory.length === 0) {\n    // Never contacted - add to list\n    staleLeads.push({\n      contact,\n      reason: 'never_contacted',\n      daysSinceLastContact: 999\n    });\n    continue;\n  }\n  \n  // Find most recent contact\n  const sortedHistory = contactHistory.sort((a, b) => {\n    const dateA = new Date(a.json['Sent Timestamp']);\n    const dateB = new Date(b.json['Sent Timestamp']);\n    return dateB - dateA;\n  });\n  \n  const lastContact = sortedHistory[0].json;\n  const lastContactDate = new Date(lastContact['Sent Timestamp']);\n  const daysSince = Math.floor((now - lastContactDate) / (1000 * 60 * 60 * 24));\n  \n  // Check if stale\n  if (daysSince >= STALE_DAYS) {\n    // Check engagement on last email\n    const wasOpened = lastContact['Open Count'] && parseInt(lastContact['Open Count']) > 0;\n    const wasClicked = lastContact['Click Count'] && parseInt(lastContact['Click Count']) > 0;\n    \n    staleLeads.push({\n      contact,\n      reason: 'stale_lead',\n      daysSinceLastContact: daysSince,\n      lastEngagement: wasOpened ? (wasClicked ? 'clicked' : 'opened') : 'no_engagement'\n    });\n  }\n}\n\n// Sort by lead score (highest first) and limit to top 20\nconst sortedStaleLeads = staleLeads\n  .sort((a, b) => {\n    const scoreA = parseInt(a.contact['Lead Score'] || '0');\n    const scoreB = parseInt(b.contact['Lead Score'] || '0');\n    return scoreB - scoreA;\n  })\n  .slice(0, 20);\n\nconsole.log(`Auto-Pilot: Found ${sortedStaleLeads.length} stale hot leads`);\n\nreturn sortedStaleLeads.map(item => ({ json: item }));"
+      },
+      "name": "Find Stale Hot Leads",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json['contact']['Lead Score']}}",
+              "operation": "largerEqual",
+              "value2": 6
+            }
+          ]
+        }
+      },
+      "name": "Filter High-Value Leads",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Brand Configuration"
+        },
+        "range": "A:Z",
+        "options": {}
+      },
+      "name": "Load Brand Configuration",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1050, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Match contact to appropriate brand\nconst contact = $input.item.json.contact;\nconst brands = $('Load Brand Configuration').all();\n\n// Get contact's brand association or default\nconst contactBrandId = contact['Brand Association'] || '';\n\nlet selectedBrand;\nif (contactBrandId) {\n  // Find matching brand\n  selectedBrand = brands.find(b => b.json['Brand ID'] === contactBrandId);\n}\n\nif (!selectedBrand) {\n  // Default to first active brand\n  selectedBrand = brands.find(b => b.json['Status'] === 'Active');\n}\n\nif (!selectedBrand) {\n  throw new Error('No active brand found');\n}\n\nreturn {\n  json: {\n    contact: $input.item.json,\n    brand: selectedBrand.json\n  }\n};"
+      },
+      "name": "Match Contact to Brand",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Determine campaign goal based on contact state\nconst contactData = $input.item.json.contact;\nconst reason = contactData.reason;\nconst lastEngagement = contactData.lastEngagement;\nconst daysSince = contactData.daysSinceLastContact;\nconst leadScore = parseInt(contactData.contact['Lead Score'] || '5');\n\nlet campaignGoal = '';\nlet additionalContext = '';\n\nif (reason === 'never_contacted') {\n  campaignGoal = 'initial outreach and introduction';\n  additionalContext = 'This is the first contact with this lead. Focus on building rapport and introducing our value proposition.';\n} else if (reason === 'stale_lead') {\n  if (lastEngagement === 'clicked') {\n    campaignGoal = 'follow-up with previously engaged lead';\n    additionalContext = `Last email was sent ${daysSince} days ago and they clicked a link, showing interest. Follow up to move them forward.`;\n  } else if (lastEngagement === 'opened') {\n    campaignGoal = 're-engagement with warm lead';\n    additionalContext = `Last email was sent ${daysSince} days ago and they opened it but didn\\'t click. Provide more value to spark action.`;\n  } else {\n    campaignGoal = 're-engagement with cold lead';\n    additionalContext = `Last email was sent ${daysSince} days ago but no engagement. Try a different angle or value proposition.`;\n  }\n}\n\nreturn {\n  json: {\n    ...$input.item.json,\n    campaignGoal,\n    additionalContext\n  }\n};"
+      },
+      "name": "Determine Campaign Strategy",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env['N8N_BASE_URL']}}/webhook/generate-email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contact",
+              "value": "={{$json['contact']['contact']}}"
+            },
+            {
+              "name": "brand",
+              "value": "={{$json['brand']}}"
+            },
+            {
+              "name": "campaign_goal",
+              "value": "={{$json['campaignGoal']}}"
+            },
+            {
+              "name": "additional_context",
+              "value": "={{$json['additionalContext']}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Call Claude Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1650, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Webhook Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json['success']}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Check Generation Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Prepare campaign data for creation\nconst contact = $node['Determine Campaign Strategy'].json.contact.contact;\nconst brand = $node['Determine Campaign Strategy'].json.brand;\nconst generatedEmail = $input.item.json;\n\nconst campaignId = 'CMP-AUTO-' + Date.now();\nconst queueId = 'Q-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);\n\n// Schedule for immediate send (within 5 minutes)\nconst scheduledTime = new Date();\nscheduledTime.setMinutes(scheduledTime.getMinutes() + 2);\n\nreturn {\n  json: {\n    'Campaign ID': campaignId,\n    'Queue ID': queueId,\n    'Campaign Name': `Auto-Pilot: ${contact['First Name']} ${contact['Last Name']}`,\n    'Brand ID': brand['Brand ID'],\n    'Contact ID': contact['Contact ID'],\n    'Contact Email': contact['Email'],\n    'Contact Name': `${contact['First Name']} ${contact['Last Name']}`,\n    'Subject Line': generatedEmail.subject,\n    'Email Body': generatedEmail.body,\n    'From Email': brand['From Email'],\n    'From Name': brand['From Name'],\n    'Message Mode': 'Claude AI',\n    'Delivery Mode': 'Send Now',\n    'Status': 'ready',\n    'Created At': new Date().toISOString(),\n    'Scheduled Send Time': scheduledTime.toISOString(),\n    'Created By': 'Auto-Pilot System',\n    'Campaign Goal': $node['Determine Campaign Strategy'].json.campaignGoal,\n    'Generation Metadata': JSON.stringify(generatedEmail.metadata)\n  }\n};"
+      },
+      "name": "Prepare Campaign Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2050, 200]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Campaign Queue"
+        },
+        "options": {}
+      },
+      "name": "Write to Campaign Queue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [2250, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "baseId": "YOUR_AIRTABLE_BASE_ID",
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Campaigns"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Campaign ID": "={{$json['Campaign ID']}}",
+            "Campaign Name": "={{$json['Campaign Name']}}",
+            "Brand ID": "={{$json['Brand ID']}}",
+            "Status": "active",
+            "Created At": "={{$json['Created At']}}",
+            "Created By": "Auto-Pilot System",
+            "Message Mode": "Claude AI",
+            "Delivery Mode": "Send Now"
+          }
+        },
+        "options": {}
+      },
+      "name": "Create Campaign in Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [2250, 350],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "3",
+          "name": "Airtable Personal Access Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log failed generation\nconst contact = $node['Determine Campaign Strategy'].json.contact.contact;\nconst error = $input.item.json.error || 'Unknown error';\n\nconsole.error(`Auto-Pilot: Failed to generate email for ${contact['Email']}: ${error}`);\n\nreturn {\n  json: {\n    contactEmail: contact['Email'],\n    error,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Log Failed Generation",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2050, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Final summary\nconst allResults = $input.all();\nconst successCount = allResults.filter(item => item.json['Campaign ID']).length;\nconst failCount = allResults.filter(item => item.json['error']).length;\n\nconsole.log(`Auto-Pilot Summary: ${successCount} campaigns created, ${failCount} failures`);\n\nreturn {\n  json: {\n    timestamp: new Date().toISOString(),\n    totalProcessed: allResults.length,\n    successCount,\n    failCount,\n    status: 'completed'\n  }\n};"
+      },
+      "name": "Generate Summary",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2450, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Daily 9am)": {
+      "main": [
+        [
+          {
+            "node": "Load All Contacts",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Load Send History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load All Contacts": {
+      "main": [
+        [
+          {
+            "node": "Find Stale Hot Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Stale Hot Leads": {
+      "main": [
+        [
+          {
+            "node": "Filter High-Value Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter High-Value Leads": {
+      "main": [
+        [
+          {
+            "node": "Load Brand Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Brand Configuration": {
+      "main": [
+        [
+          {
+            "node": "Match Contact to Brand",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Contact to Brand": {
+      "main": [
+        [
+          {
+            "node": "Determine Campaign Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Campaign Strategy": {
+      "main": [
+        [
+          {
+            "node": "Call Claude Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Claude Generation": {
+      "main": [
+        [
+          {
+            "node": "Check Generation Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Generation Success": {
+      "main": [
+        [
+          {
+            "node": "Prepare Campaign Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Failed Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Campaign Data": {
+      "main": [
+        [
+          {
+            "node": "Write to Campaign Queue",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Campaign in Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to Campaign Queue": {
+      "main": [
+        [
+          {
+            "node": "Generate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Failed Generation": {
+      "main": [
+        [
+          {
+            "node": "Generate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-22T00:00:00.000Z",
+  "versionId": "1"
+}

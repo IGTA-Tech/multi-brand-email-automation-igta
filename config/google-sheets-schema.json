@@ -1,0 +1,231 @@
+{
+  "spreadsheet_name": "Multi-Brand Email Automation Master",
+  "sheets": [
+    {
+      "name": "Ultimate Contact Sheet",
+      "columns": [
+        {"name": "Contact ID", "type": "text", "description": "Unique identifier (e.g., C-001)", "example": "C-001"},
+        {"name": "First Name", "type": "text", "description": "Contact's first name", "example": "John"},
+        {"name": "Last Name", "type": "text", "description": "Contact's last name", "example": "Doe"},
+        {"name": "Email", "type": "email", "description": "Primary email address", "example": "john.doe@example.com"},
+        {"name": "Phone", "type": "text", "description": "Phone number", "example": "+1-555-0123"},
+        {"name": "Company", "type": "text", "description": "Company name", "example": "Acme Inc"},
+        {"name": "Job Title", "type": "text", "description": "Job title/role", "example": "Marketing Director"},
+        {"name": "Industry", "type": "text", "description": "Industry sector", "example": "Technology"},
+        {"name": "Location", "type": "text", "description": "City, State/Country", "example": "San Francisco, CA"},
+        {"name": "Lead Status", "type": "select", "description": "Current lead status", "options": ["New Lead", "Contacted", "Warm Lead", "Hot Lead", "Customer", "Unsubscribed"], "example": "Hot Lead"},
+        {"name": "Lead Score", "type": "number", "description": "Score 0-10", "example": "8"},
+        {"name": "Brand Association", "type": "text", "description": "Associated brand ID", "example": "BRD-001"},
+        {"name": "Tags", "type": "text", "description": "Comma-separated tags", "example": "enterprise, tech, decision-maker"},
+        {"name": "Source", "type": "text", "description": "How they were acquired", "example": "Website Form"},
+        {"name": "Notes", "type": "text", "description": "Internal notes", "example": "Interested in enterprise plan"},
+        {"name": "Recent Activity", "type": "text", "description": "Latest interaction", "example": "Downloaded whitepaper"},
+        {"name": "LinkedIn URL", "type": "url", "description": "LinkedIn profile", "example": "https://linkedin.com/in/johndoe"},
+        {"name": "Website", "type": "url", "description": "Personal/company website", "example": "https://example.com"},
+        {"name": "Total Opens", "type": "number", "description": "Total email opens", "formula": "COUNTIF('Send History Log'!B:B, A2)"},
+        {"name": "Total Clicks", "type": "number", "description": "Total email clicks", "formula": "COUNTIFS('Send History Log'!B:B, A2, 'Send History Log'!M:M, \">0\")"},
+        {"name": "Total Replies", "type": "number", "description": "Total email replies", "formula": "COUNTIFS('Send History Log'!B:B, A2, 'Send History Log'!N:N, \">0\")"},
+        {"name": "Engagement Score", "type": "number", "description": "Calculated engagement", "formula": "(S2*5)+(T2*10)+(U2*15)"},
+        {"name": "Last Engagement Date", "type": "date", "description": "Last interaction date", "example": "2025-10-20"},
+        {"name": "Emails Sent 24h", "type": "number", "description": "Emails in last 24 hours", "formula": "COUNTIFS('Send History Log'!B:B, A2, 'Send History Log'!F:F, \">\"&NOW()-1)"},
+        {"name": "Emails Sent 7d", "type": "number", "description": "Emails in last 7 days", "formula": "COUNTIFS('Send History Log'!B:B, A2, 'Send History Log'!F:F, \">\"&NOW()-7)"},
+        {"name": "Emails Sent 30d", "type": "number", "description": "Emails in last 30 days", "formula": "COUNTIFS('Send History Log'!B:B, A2, 'Send History Log'!F:F, \">\"&NOW()-30)"},
+        {"name": "Can Send", "type": "boolean", "description": "Frequency check", "formula": "AND(X2<1, Y2<3, Z2<10, K2<>\"Unsubscribed\")"},
+        {"name": "Unsubscribed", "type": "boolean", "description": "Opt-out status", "example": "FALSE"},
+        {"name": "Bounced", "type": "boolean", "description": "Email bounced", "example": "FALSE"},
+        {"name": "Created Date", "type": "date", "description": "When contact was added", "example": "2025-01-15"},
+        {"name": "Last Modified", "type": "timestamp", "description": "Last update time", "formula": "NOW()"},
+        {"name": "Modified By", "type": "text", "description": "Who last modified", "example": "user@example.com"},
+        {"name": "Airtable Record ID", "type": "text", "description": "Airtable record ID for sync", "example": "recABC123"}
+      ],
+      "conditional_formatting": [
+        {"range": "K:K", "condition": "='Hot Lead'", "background": "#ff9999"},
+        {"range": "K:K", "condition": "='Warm Lead'", "background": "#ffcc99"},
+        {"range": "AA:AA", "condition": "=TRUE", "background": "#99ff99"},
+        {"range": "AA:AA", "condition": "=FALSE", "background": "#ffcccc"}
+      ],
+      "data_validation": [
+        {"range": "K:K", "type": "list", "values": ["New Lead", "Contacted", "Warm Lead", "Hot Lead", "Customer", "Unsubscribed"]},
+        {"range": "L:L", "type": "number", "min": 0, "max": 10}
+      ]
+    },
+    {
+      "name": "Send History Log",
+      "columns": [
+        {"name": "Queue ID", "type": "text", "description": "Unique queue identifier", "example": "Q-20251022-abc123"},
+        {"name": "Contact Email", "type": "email", "description": "Recipient email", "example": "john@example.com"},
+        {"name": "Contact ID", "type": "text", "description": "Contact identifier", "example": "C-001"},
+        {"name": "Campaign ID", "type": "text", "description": "Campaign identifier", "example": "CMP-001"},
+        {"name": "Brand ID", "type": "text", "description": "Brand identifier", "example": "BRD-001"},
+        {"name": "Sent Timestamp", "type": "timestamp", "description": "When email was sent", "example": "2025-10-22 10:30:00"},
+        {"name": "Subject Line", "type": "text", "description": "Email subject", "example": "Your personalized offer"},
+        {"name": "Message Mode", "type": "select", "description": "How email was created", "options": ["Template", "Manual", "Claude AI"], "example": "Claude AI"},
+        {"name": "Status", "type": "select", "description": "Send status", "options": ["sent", "opened", "clicked", "replied", "bounced", "failed"], "example": "opened"},
+        {"name": "Open Count", "type": "number", "description": "Times opened", "example": "3"},
+        {"name": "First Open Timestamp", "type": "timestamp", "description": "First open time", "example": "2025-10-22 11:15:00"},
+        {"name": "Last Open Timestamp", "type": "timestamp", "description": "Most recent open", "example": "2025-10-22 14:30:00"},
+        {"name": "Click Count", "type": "number", "description": "Times clicked", "example": "1"},
+        {"name": "Reply Count", "type": "number", "description": "Times replied", "example": "0"},
+        {"name": "Engagement Score", "type": "number", "description": "Calculated engagement", "formula": "(J2*10)+(M2*20)+(N2*30)"},
+        {"name": "From Email", "type": "email", "description": "Sender email", "example": "hello@brand.com"},
+        {"name": "Workspace ID", "type": "text", "description": "Which workspace sent", "example": "workspace1"},
+        {"name": "Delivery Status", "type": "text", "description": "Lido delivery status", "example": "delivered"},
+        {"name": "Bounce Type", "type": "text", "description": "If bounced: hard/soft", "example": ""},
+        {"name": "Bounce Reason", "type": "text", "description": "Bounce error message", "example": ""},
+        {"name": "Tracking Pixel URL", "type": "url", "description": "Pixel tracking URL", "example": "https://track.domain.com/pixel?q=..."},
+        {"name": "Campaign Name", "type": "text", "description": "Campaign name", "example": "Q4 Outreach"},
+        {"name": "Generation Cost", "type": "number", "description": "AI generation cost", "example": "0.0065"},
+        {"name": "Airtable Record ID", "type": "text", "description": "Airtable sync ID", "example": "recXYZ789"}
+      ],
+      "conditional_formatting": [
+        {"range": "I:I", "condition": "='opened'", "background": "#d9ead3"},
+        {"range": "I:I", "condition": "='clicked'", "background": "#b6d7a8"},
+        {"range": "I:I", "condition": "='replied'", "background": "#93c47d"},
+        {"range": "I:I", "condition": "='bounced'", "background": "#f4cccc"},
+        {"range": "I:I", "condition": "='failed'", "background": "#ea9999"}
+      ]
+    },
+    {
+      "name": "Campaign Queue",
+      "columns": [
+        {"name": "Queue ID", "type": "text", "description": "Unique queue entry ID", "example": "Q-20251022-abc123"},
+        {"name": "Campaign ID", "type": "text", "description": "Parent campaign ID", "example": "CMP-001"},
+        {"name": "Campaign Name", "type": "text", "description": "Campaign name", "example": "Q4 Follow-up"},
+        {"name": "Brand ID", "type": "text", "description": "Brand ID", "example": "BRD-001"},
+        {"name": "Contact ID", "type": "text", "description": "Target contact ID", "example": "C-001"},
+        {"name": "Contact Email", "type": "email", "description": "Recipient email", "example": "john@example.com"},
+        {"name": "Contact Name", "type": "text", "description": "Full name", "example": "John Doe"},
+        {"name": "Subject Line", "type": "text", "description": "Email subject", "example": "Following up on your interest"},
+        {"name": "Email Body", "type": "text", "description": "Email HTML body", "example": "<html>..."},
+        {"name": "From Email", "type": "email", "description": "Sender email", "example": "hello@brand.com"},
+        {"name": "From Name", "type": "text", "description": "Sender name", "example": "Elite Sports Team"},
+        {"name": "Message Mode", "type": "select", "description": "Creation method", "options": ["Template", "Manual", "Claude AI"], "example": "Claude AI"},
+        {"name": "Delivery Mode", "type": "select", "description": "When to send", "options": ["Send Now", "Scheduled", "Recurring", "Auto-Pilot"], "example": "Send Now"},
+        {"name": "Status", "type": "select", "description": "Queue status", "options": ["ready", "processing", "sent", "blocked", "failed"], "example": "ready"},
+        {"name": "Scheduled Send Time", "type": "timestamp", "description": "When to send", "example": "2025-10-22 15:00:00"},
+        {"name": "Created At", "type": "timestamp", "description": "Queue entry created", "example": "2025-10-22 10:00:00"},
+        {"name": "Processed At", "type": "timestamp", "description": "When processed", "example": ""},
+        {"name": "Block Reason", "type": "text", "description": "Why blocked", "example": ""},
+        {"name": "Frequency 24h", "type": "number", "description": "Emails sent in 24h", "example": "0"},
+        {"name": "Frequency 7d", "type": "number", "description": "Emails sent in 7d", "example": "1"},
+        {"name": "Frequency 30d", "type": "number", "description": "Emails sent in 30d", "example": "5"}
+      ],
+      "conditional_formatting": [
+        {"range": "N:N", "condition": "='ready'", "background": "#fff2cc"},
+        {"range": "N:N", "condition": "='processing'", "background": "#cfe2f3"},
+        {"range": "N:N", "condition": "='sent'", "background": "#d9ead3"},
+        {"range": "N:N", "condition": "='blocked'", "background": "#f4cccc"},
+        {"range": "N:N", "condition": "='failed'", "background": "#ea9999"}
+      ]
+    },
+    {
+      "name": "Brand Configuration",
+      "columns": [
+        {"name": "Brand ID", "type": "text", "description": "Unique brand identifier", "example": "BRD-001"},
+        {"name": "Brand Name", "type": "text", "description": "Brand display name", "example": "Elite Sports Visas"},
+        {"name": "Status", "type": "select", "description": "Active/Inactive", "options": ["Active", "Inactive"], "example": "Active"},
+        {"name": "From Email", "type": "email", "description": "Sending email address", "example": "hello@elitesportsvisas.com"},
+        {"name": "From Name", "type": "text", "description": "Sender display name", "example": "Elite Sports Team"},
+        {"name": "Reply To Email", "type": "email", "description": "Reply-to address", "example": "support@elitesportsvisas.com"},
+        {"name": "Brand Voice", "type": "text", "description": "Voice guidelines", "example": "Professional yet encouraging, knowledgeable about sports immigration"},
+        {"name": "Brand Tone", "type": "text", "description": "Communication tone", "example": "Conversational, supportive, action-oriented"},
+        {"name": "Brand Color", "type": "text", "description": "Hex color code", "example": "#1a73e8"},
+        {"name": "Logo URL", "type": "url", "description": "Brand logo image", "example": "https://cdn.example.com/logo.png"},
+        {"name": "Website URL", "type": "url", "description": "Brand website", "example": "https://elitesportsvisas.com"},
+        {"name": "Email Signature", "type": "text", "description": "HTML email signature", "example": "<div>Best regards,<br>The Elite Sports Team</div>"},
+        {"name": "Unsubscribe Link", "type": "url", "description": "Unsubscribe page", "example": "https://elitesportsvisas.com/unsubscribe"},
+        {"name": "Privacy Policy URL", "type": "url", "description": "Privacy policy link", "example": "https://elitesportsvisas.com/privacy"},
+        {"name": "Max Emails Per Day", "type": "number", "description": "Daily send limit", "example": "500"},
+        {"name": "Workspace Assignments", "type": "text", "description": "Comma-separated workspace IDs", "example": "workspace1,workspace2"},
+        {"name": "Template Library Access", "type": "text", "description": "Accessible template IDs", "example": "TPL-001,TPL-002"},
+        {"name": "Target Audience", "type": "text", "description": "Primary audience", "example": "Professional athletes seeking O-1 visas"},
+        {"name": "Key Services", "type": "text", "description": "Main offerings", "example": "O-1 visa, P-1 visa, consultation"},
+        {"name": "USP", "type": "text", "description": "Unique selling proposition", "example": "Fastest processing with 98% approval rate"},
+        {"name": "Created Date", "type": "date", "description": "When brand was added", "example": "2025-01-01"},
+        {"name": "Last Modified", "type": "timestamp", "description": "Last update", "example": "2025-10-22 10:00:00"},
+        {"name": "Airtable Record ID", "type": "text", "description": "Airtable sync ID", "example": "recBRD001"}
+      ],
+      "conditional_formatting": [
+        {"range": "C:C", "condition": "='Active'", "background": "#d9ead3"},
+        {"range": "C:C", "condition": "='Inactive'", "background": "#f4cccc"}
+      ]
+    },
+    {
+      "name": "Template Library",
+      "columns": [
+        {"name": "Template ID", "type": "text", "description": "Unique template ID", "example": "TPL-001"},
+        {"name": "Template Name", "type": "text", "description": "Template display name", "example": "Initial Outreach - Athletes"},
+        {"name": "Brand ID", "type": "text", "description": "Associated brand", "example": "BRD-001"},
+        {"name": "Category", "type": "select", "description": "Template category", "options": ["Outreach", "Follow-up", "Re-engagement", "Newsletter", "Nurture"], "example": "Outreach"},
+        {"name": "Subject Line", "type": "text", "description": "Email subject template", "example": "Hi {firstName}, ready to advance your career?"},
+        {"name": "Body Template", "type": "text", "description": "HTML email body", "example": "<p>Hi {firstName},</p><p>...</p>"},
+        {"name": "Available Variables", "type": "text", "description": "Comma-separated variables", "example": "firstName,lastName,company,visaType"},
+        {"name": "Target Audience", "type": "text", "description": "Who it's for", "example": "Hot leads in sports industry"},
+        {"name": "Use Case", "type": "text", "description": "When to use", "example": "First contact with qualified athlete leads"},
+        {"name": "Tone", "type": "select", "description": "Template tone", "options": ["Professional", "Casual", "Urgent", "Educational"], "example": "Professional"},
+        {"name": "Status", "type": "select", "description": "Active/Archived", "options": ["Active", "Draft", "Archived"], "example": "Active"},
+        {"name": "Preview Image URL", "type": "url", "description": "Template screenshot", "example": "https://cdn.example.com/preview.png"},
+        {"name": "Open Rate", "type": "number", "description": "Average open rate %", "example": "28.5"},
+        {"name": "Click Rate", "type": "number", "description": "Average click rate %", "example": "4.2"},
+        {"name": "Times Used", "type": "number", "description": "Usage count", "example": "156"},
+        {"name": "Created By", "type": "text", "description": "Creator email", "example": "user@example.com"},
+        {"name": "Created Date", "type": "date", "description": "Creation date", "example": "2025-01-10"},
+        {"name": "Last Modified", "type": "timestamp", "description": "Last update", "example": "2025-10-15 09:00:00"},
+        {"name": "Airtable Record ID", "type": "text", "description": "Airtable sync ID", "example": "recTPL001"}
+      ],
+      "conditional_formatting": [
+        {"range": "K:K", "condition": "='Active'", "background": "#d9ead3"},
+        {"range": "K:K", "condition": "='Draft'", "background": "#fff2cc"},
+        {"range": "K:K", "condition": "='Archived'", "background": "#f4cccc"}
+      ]
+    },
+    {
+      "name": "Lido Send Queue",
+      "columns": [
+        {"name": "Queue ID", "type": "text", "description": "From Campaign Queue", "example": "Q-20251022-abc123"},
+        {"name": "To Email", "type": "email", "description": "Recipient", "example": "john@example.com"},
+        {"name": "To Name", "type": "text", "description": "Recipient name", "example": "John Doe"},
+        {"name": "From Email", "type": "email", "description": "Sender", "example": "hello@brand.com"},
+        {"name": "From Name", "type": "text", "description": "Sender name", "example": "Elite Sports Team"},
+        {"name": "Subject", "type": "text", "description": "Email subject", "example": "Your personalized offer"},
+        {"name": "Body HTML", "type": "text", "description": "Email body with tracking", "example": "<html>..."},
+        {"name": "Reply To", "type": "email", "description": "Reply-to address", "example": "support@brand.com"},
+        {"name": "Workspace ID", "type": "text", "description": "Which workspace to use", "example": "workspace1"},
+        {"name": "Send Status", "type": "select", "description": "Lido processing status", "options": ["pending", "sending", "sent", "failed"], "example": "pending"},
+        {"name": "Queued At", "type": "timestamp", "description": "When queued", "example": "2025-10-22 10:30:00"},
+        {"name": "Sent At", "type": "timestamp", "description": "When sent", "example": ""},
+        {"name": "Lido Message ID", "type": "text", "description": "Lido tracking ID", "example": ""},
+        {"name": "Error Message", "type": "text", "description": "If failed", "example": ""},
+        {"name": "Campaign ID", "type": "text", "description": "Parent campaign", "example": "CMP-001"},
+        {"name": "Brand ID", "type": "text", "description": "Brand", "example": "BRD-001"},
+        {"name": "Contact ID", "type": "text", "description": "Contact", "example": "C-001"},
+        {"name": "Tracking Pixel", "type": "url", "description": "Pixel URL", "example": "https://track.domain.com/pixel?..."},
+        {"name": "Priority", "type": "select", "description": "Send priority", "options": ["low", "normal", "high"], "example": "normal"}
+      ],
+      "conditional_formatting": [
+        {"range": "J:J", "condition": "='pending'", "background": "#fff2cc"},
+        {"range": "J:J", "condition": "='sending'", "background": "#cfe2f3"},
+        {"range": "J:J", "condition": "='sent'", "background": "#d9ead3"},
+        {"range": "J:J", "condition": "='failed'", "background": "#f4cccc"}
+      ],
+      "note": "This sheet is automatically populated by Workflow 3 and consumed by Lido automations"
+    }
+  ],
+  "named_ranges": [
+    {"name": "ContactEmails", "range": "'Ultimate Contact Sheet'!D:D"},
+    {"name": "ActiveBrands", "range": "'Brand Configuration'!A:A"},
+    {"name": "ActiveTemplates", "range": "'Template Library'!A:A"}
+  ],
+  "setup_instructions": [
+    "1. Create new Google Spreadsheet named 'Multi-Brand Email Automation Master'",
+    "2. Create all 6 sheets with exact names as listed above",
+    "3. Add column headers as specified in each sheet",
+    "4. Apply conditional formatting rules",
+    "5. Set up data validation for dropdown fields",
+    "6. Add formulas to calculated columns",
+    "7. Install Apps Script from google-apps-script/Code.gs",
+    "8. Install CampaignDialog.html in Apps Script",
+    "9. Run setupTriggers() function once",
+    "10. Test by clicking Email Automation menu"
+  ]
+}

@@ -1,0 +1,273 @@
+{
+  "base_name": "Email Campaign Manager",
+  "description": "Relational database for email campaign management with full relationship mapping",
+  "tables": [
+    {
+      "name": "Contacts",
+      "primary_field": "Contact ID",
+      "description": "Master contact list with engagement metrics",
+      "fields": [
+        {"name": "Contact ID", "type": "single_line_text", "description": "Unique identifier", "primary": true},
+        {"name": "First Name", "type": "single_line_text"},
+        {"name": "Last Name", "type": "single_line_text"},
+        {"name": "Full Name", "type": "formula", "formula": "{First Name} & ' ' & {Last Name}"},
+        {"name": "Email", "type": "email"},
+        {"name": "Phone", "type": "phone_number"},
+        {"name": "Company", "type": "single_line_text"},
+        {"name": "Job Title", "type": "single_line_text"},
+        {"name": "Industry", "type": "single_select", "options": ["Technology", "Sports", "Healthcare", "Finance", "Education", "Other"]},
+        {"name": "Location", "type": "single_line_text"},
+        {"name": "Lead Status", "type": "single_select", "options": ["New Lead", "Contacted", "Warm Lead", "Hot Lead", "Customer", "Unsubscribed"]},
+        {"name": "Lead Score", "type": "number", "number_format": "integer", "min": 0, "max": 10},
+        {"name": "Brand", "type": "linked_record", "linked_table": "Brands", "description": "Link to associated brand"},
+        {"name": "Tags", "type": "multiple_selects", "options": ["enterprise", "tech", "decision-maker", "influencer", "budget-holder"]},
+        {"name": "Source", "type": "single_select", "options": ["Website Form", "LinkedIn", "Referral", "Event", "Cold Outreach", "Other"]},
+        {"name": "Notes", "type": "long_text"},
+        {"name": "Recent Activity", "type": "long_text"},
+        {"name": "LinkedIn URL", "type": "url"},
+        {"name": "Website", "type": "url"},
+        {"name": "Send History", "type": "linked_record", "linked_table": "Send History", "description": "All emails sent to this contact"},
+        {"name": "Campaigns", "type": "linked_record", "linked_table": "Campaigns", "description": "Campaigns this contact is part of"},
+        {"name": "Total Opens", "type": "rollup", "linked_field": "Send History", "rollup_field": "Open Count", "aggregation": "SUM"},
+        {"name": "Total Clicks", "type": "rollup", "linked_field": "Send History", "rollup_field": "Click Count", "aggregation": "SUM"},
+        {"name": "Total Replies", "type": "rollup", "linked_field": "Send History", "rollup_field": "Reply Count", "aggregation": "SUM"},
+        {"name": "Engagement Score", "type": "formula", "formula": "({Total Opens} * 5) + ({Total Clicks} * 10) + ({Total Replies} * 15)"},
+        {"name": "Last Engagement Date", "type": "date"},
+        {"name": "Unsubscribed", "type": "checkbox"},
+        {"name": "Bounced", "type": "checkbox"},
+        {"name": "Created Date", "type": "created_time"},
+        {"name": "Last Modified", "type": "last_modified_time"},
+        {"name": "Google Sheets Row", "type": "number", "description": "Row number in Google Sheets for sync"}
+      ],
+      "views": [
+        {"name": "All Contacts", "type": "grid", "sort": [{"field": "Lead Score", "direction": "desc"}]},
+        {"name": "Hot Leads", "type": "grid", "filter": "{Lead Status} = 'Hot Lead'", "sort": [{"field": "Engagement Score", "direction": "desc"}]},
+        {"name": "Warm Leads", "type": "grid", "filter": "{Lead Status} = 'Warm Lead'"},
+        {"name": "Can Send Now", "type": "grid", "filter": "AND({Unsubscribed} = FALSE, {Bounced} = FALSE)"},
+        {"name": "Unsubscribed", "type": "grid", "filter": "{Unsubscribed} = TRUE"}
+      ]
+    },
+    {
+      "name": "Brands",
+      "primary_field": "Brand ID",
+      "description": "Brand configuration and settings",
+      "fields": [
+        {"name": "Brand ID", "type": "single_line_text", "primary": true},
+        {"name": "Brand Name", "type": "single_line_text"},
+        {"name": "Status", "type": "single_select", "options": ["Active", "Inactive"]},
+        {"name": "From Email", "type": "email"},
+        {"name": "From Name", "type": "single_line_text"},
+        {"name": "Reply To Email", "type": "email"},
+        {"name": "Brand Voice", "type": "long_text"},
+        {"name": "Brand Tone", "type": "single_line_text"},
+        {"name": "Brand Color", "type": "single_line_text", "description": "Hex color code"},
+        {"name": "Logo URL", "type": "url"},
+        {"name": "Website URL", "type": "url"},
+        {"name": "Email Signature", "type": "long_text"},
+        {"name": "Unsubscribe Link", "type": "url"},
+        {"name": "Privacy Policy URL", "type": "url"},
+        {"name": "Max Emails Per Day", "type": "number", "number_format": "integer"},
+        {"name": "Workspace Assignments", "type": "single_line_text", "description": "Comma-separated workspace IDs"},
+        {"name": "Contacts", "type": "linked_record", "linked_table": "Contacts", "description": "Contacts associated with this brand"},
+        {"name": "Campaigns", "type": "linked_record", "linked_table": "Campaigns", "description": "Campaigns for this brand"},
+        {"name": "Templates", "type": "linked_record", "linked_table": "Templates", "description": "Available templates"},
+        {"name": "Total Contacts", "type": "count", "linked_field": "Contacts"},
+        {"name": "Total Campaigns", "type": "count", "linked_field": "Campaigns"},
+        {"name": "Target Audience", "type": "long_text"},
+        {"name": "Key Services", "type": "long_text"},
+        {"name": "USP", "type": "long_text"},
+        {"name": "Created Date", "type": "created_time"},
+        {"name": "Last Modified", "type": "last_modified_time"}
+      ],
+      "views": [
+        {"name": "Active Brands", "type": "grid", "filter": "{Status} = 'Active'"},
+        {"name": "All Brands", "type": "grid"}
+      ]
+    },
+    {
+      "name": "Campaigns",
+      "primary_field": "Campaign ID",
+      "description": "Email campaign tracking and management",
+      "fields": [
+        {"name": "Campaign ID", "type": "single_line_text", "primary": true},
+        {"name": "Campaign Name", "type": "single_line_text"},
+        {"name": "Brand", "type": "linked_record", "linked_table": "Brands"},
+        {"name": "Status", "type": "single_select", "options": ["draft", "active", "paused", "completed", "archived"]},
+        {"name": "Message Mode", "type": "single_select", "options": ["Template", "Manual", "Claude AI"]},
+        {"name": "Delivery Mode", "type": "single_select", "options": ["Send Now", "Scheduled", "Recurring", "Auto-Pilot"]},
+        {"name": "Target Contacts", "type": "linked_record", "linked_table": "Contacts", "description": "Contacts targeted by this campaign"},
+        {"name": "Template Used", "type": "linked_record", "linked_table": "Templates"},
+        {"name": "Queue Entries", "type": "linked_record", "linked_table": "Campaign Queue", "description": "Queue entries for this campaign"},
+        {"name": "Send History", "type": "linked_record", "linked_table": "Send History", "description": "Emails sent in this campaign"},
+        {"name": "Total Recipients", "type": "count", "linked_field": "Target Contacts"},
+        {"name": "Total Sent", "type": "rollup", "linked_field": "Send History", "rollup_field": "Status", "aggregation": "COUNTALL"},
+        {"name": "Total Opened", "type": "rollup", "linked_field": "Send History", "rollup_field": "Open Count", "aggregation": "SUM"},
+        {"name": "Total Clicked", "type": "rollup", "linked_field": "Send History", "rollup_field": "Click Count", "aggregation": "SUM"},
+        {"name": "Total Replied", "type": "rollup", "linked_field": "Send History", "rollup_field": "Reply Count", "aggregation": "SUM"},
+        {"name": "Open Rate %", "type": "formula", "formula": "IF({Total Sent} > 0, ROUND(({Total Opened} / {Total Sent}) * 100, 1), 0)"},
+        {"name": "Click Rate %", "type": "formula", "formula": "IF({Total Sent} > 0, ROUND(({Total Clicked} / {Total Sent}) * 100, 1), 0)"},
+        {"name": "Reply Rate %", "type": "formula", "formula": "IF({Total Sent} > 0, ROUND(({Total Replied} / {Total Sent}) * 100, 1), 0)"},
+        {"name": "Campaign Goal", "type": "long_text"},
+        {"name": "Target Audience Description", "type": "long_text"},
+        {"name": "Subject Line Template", "type": "long_text"},
+        {"name": "Scheduled Start", "type": "date", "include_time": true},
+        {"name": "Scheduled End", "type": "date", "include_time": true},
+        {"name": "Recurring Pattern", "type": "single_select", "options": ["none", "daily", "weekly", "monthly"]},
+        {"name": "Created By", "type": "single_line_text"},
+        {"name": "Created At", "type": "created_time"},
+        {"name": "Last Modified", "type": "last_modified_time"}
+      ],
+      "views": [
+        {"name": "Active Campaigns", "type": "grid", "filter": "{Status} = 'active'"},
+        {"name": "All Campaigns", "type": "grid", "sort": [{"field": "Created At", "direction": "desc"}]},
+        {"name": "Performance Dashboard", "type": "grid", "fields": ["Campaign Name", "Total Sent", "Open Rate %", "Click Rate %", "Reply Rate %"]},
+        {"name": "Completed", "type": "grid", "filter": "{Status} = 'completed'"}
+      ]
+    },
+    {
+      "name": "Campaign Queue",
+      "primary_field": "Queue ID",
+      "description": "Email send queue with status tracking",
+      "fields": [
+        {"name": "Queue ID", "type": "single_line_text", "primary": true},
+        {"name": "Campaign", "type": "linked_record", "linked_table": "Campaigns"},
+        {"name": "Contact", "type": "linked_record", "linked_table": "Contacts"},
+        {"name": "Brand", "type": "linked_record", "linked_table": "Brands"},
+        {"name": "Subject Line", "type": "long_text"},
+        {"name": "Email Body", "type": "long_text"},
+        {"name": "From Email", "type": "email"},
+        {"name": "From Name", "type": "single_line_text"},
+        {"name": "Status", "type": "single_select", "options": ["ready", "processing", "sent", "blocked", "failed"]},
+        {"name": "Block Reason", "type": "long_text"},
+        {"name": "Scheduled Send Time", "type": "date", "include_time": true},
+        {"name": "Created At", "type": "created_time"},
+        {"name": "Processed At", "type": "date", "include_time": true},
+        {"name": "Frequency 24h", "type": "number", "number_format": "integer"},
+        {"name": "Frequency 7d", "type": "number", "number_format": "integer"},
+        {"name": "Frequency 30d", "type": "number", "number_format": "integer"},
+        {"name": "Message Mode", "type": "single_select", "options": ["Template", "Manual", "Claude AI"]},
+        {"name": "Delivery Mode", "type": "single_select", "options": ["Send Now", "Scheduled", "Recurring", "Auto-Pilot"]}
+      ],
+      "views": [
+        {"name": "Ready to Send", "type": "grid", "filter": "{Status} = 'ready'", "sort": [{"field": "Scheduled Send Time", "direction": "asc"}]},
+        {"name": "Processing", "type": "grid", "filter": "{Status} = 'processing'"},
+        {"name": "Blocked", "type": "grid", "filter": "{Status} = 'blocked'"},
+        {"name": "All Queue", "type": "grid", "sort": [{"field": "Created At", "direction": "desc"}]}
+      ]
+    },
+    {
+      "name": "Templates",
+      "primary_field": "Template ID",
+      "description": "Email template library",
+      "fields": [
+        {"name": "Template ID", "type": "single_line_text", "primary": true},
+        {"name": "Template Name", "type": "single_line_text"},
+        {"name": "Brand", "type": "linked_record", "linked_table": "Brands"},
+        {"name": "Category", "type": "single_select", "options": ["Outreach", "Follow-up", "Re-engagement", "Newsletter", "Nurture"]},
+        {"name": "Subject Line", "type": "long_text"},
+        {"name": "Body Template", "type": "long_text"},
+        {"name": "Available Variables", "type": "single_line_text", "description": "Comma-separated"},
+        {"name": "Target Audience", "type": "long_text"},
+        {"name": "Use Case", "type": "long_text"},
+        {"name": "Tone", "type": "single_select", "options": ["Professional", "Casual", "Urgent", "Educational"]},
+        {"name": "Status", "type": "single_select", "options": ["Active", "Draft", "Archived"]},
+        {"name": "Preview Image URL", "type": "url"},
+        {"name": "Campaigns Used In", "type": "linked_record", "linked_table": "Campaigns"},
+        {"name": "Times Used", "type": "count", "linked_field": "Campaigns Used In"},
+        {"name": "Open Rate", "type": "number", "number_format": "decimal", "precision": 1},
+        {"name": "Click Rate", "type": "number", "number_format": "decimal", "precision": 1},
+        {"name": "Created By", "type": "single_line_text"},
+        {"name": "Created Date", "type": "created_time"},
+        {"name": "Last Modified", "type": "last_modified_time"}
+      ],
+      "views": [
+        {"name": "Active Templates", "type": "grid", "filter": "{Status} = 'Active'"},
+        {"name": "By Category", "type": "grid", "group": ["Category"]},
+        {"name": "Top Performers", "type": "grid", "sort": [{"field": "Open Rate", "direction": "desc"}]}
+      ]
+    },
+    {
+      "name": "Send History",
+      "primary_field": "Queue ID",
+      "description": "Complete email send history and engagement tracking",
+      "fields": [
+        {"name": "Queue ID", "type": "single_line_text", "primary": true},
+        {"name": "Contact", "type": "linked_record", "linked_table": "Contacts"},
+        {"name": "Campaign", "type": "linked_record", "linked_table": "Campaigns"},
+        {"name": "Brand", "type": "linked_record", "linked_table": "Brands"},
+        {"name": "Sent Timestamp", "type": "date", "include_time": true},
+        {"name": "Subject Line", "type": "long_text"},
+        {"name": "Message Mode", "type": "single_select", "options": ["Template", "Manual", "Claude AI"]},
+        {"name": "Status", "type": "single_select", "options": ["sent", "opened", "clicked", "replied", "bounced", "failed"]},
+        {"name": "Open Count", "type": "number", "number_format": "integer"},
+        {"name": "First Open Timestamp", "type": "date", "include_time": true},
+        {"name": "Last Open Timestamp", "type": "date", "include_time": true},
+        {"name": "Click Count", "type": "number", "number_format": "integer"},
+        {"name": "Reply Count", "type": "number", "number_format": "integer"},
+        {"name": "Engagement Score", "type": "formula", "formula": "({Open Count} * 10) + ({Click Count} * 20) + ({Reply Count} * 30)"},
+        {"name": "From Email", "type": "email"},
+        {"name": "Workspace ID", "type": "single_line_text"},
+        {"name": "Delivery Status", "type": "single_select", "options": ["queued", "sent", "delivered", "bounced", "failed"]},
+        {"name": "Bounce Type", "type": "single_select", "options": ["", "hard", "soft"]},
+        {"name": "Bounce Reason", "type": "long_text"},
+        {"name": "Tracking Pixel URL", "type": "url"},
+        {"name": "Generation Cost", "type": "currency", "currency": "USD", "precision": 4}
+      ],
+      "views": [
+        {"name": "All Sends", "type": "grid", "sort": [{"field": "Sent Timestamp", "direction": "desc"}]},
+        {"name": "Opened", "type": "grid", "filter": "OR({Status} = 'opened', {Status} = 'clicked', {Status} = 'replied')"},
+        {"name": "High Engagement", "type": "grid", "filter": "{Engagement Score} >= 30", "sort": [{"field": "Engagement Score", "direction": "desc"}]},
+        {"name": "Bounced", "type": "grid", "filter": "{Status} = 'bounced'"},
+        {"name": "Failed", "type": "grid", "filter": "{Status} = 'failed'"}
+      ]
+    }
+  ],
+  "relationships": [
+    {"from": "Contacts", "to": "Brands", "type": "many-to-one", "description": "Each contact belongs to one brand"},
+    {"from": "Contacts", "to": "Send History", "type": "one-to-many", "description": "Each contact has many send history records"},
+    {"from": "Contacts", "to": "Campaigns", "type": "many-to-many", "description": "Contacts can be in multiple campaigns"},
+    {"from": "Brands", "to": "Campaigns", "type": "one-to-many", "description": "Each brand has many campaigns"},
+    {"from": "Brands", "to": "Templates", "type": "one-to-many", "description": "Each brand has many templates"},
+    {"from": "Campaigns", "to": "Campaign Queue", "type": "one-to-many", "description": "Each campaign has many queue entries"},
+    {"from": "Campaigns", "to": "Send History", "type": "one-to-many", "description": "Each campaign has many sent emails"},
+    {"from": "Templates", "to": "Campaigns", "type": "one-to-many", "description": "Each template can be used in many campaigns"}
+  ],
+  "automations": [
+    {
+      "name": "Update Campaign Stats on Send",
+      "trigger": "When record created in Send History",
+      "action": "Update linked Campaign with new totals"
+    },
+    {
+      "name": "Update Contact Engagement",
+      "trigger": "When record updated in Send History (open/click/reply)",
+      "action": "Update linked Contact engagement score"
+    },
+    {
+      "name": "Flag Hot Leads",
+      "trigger": "When Contact Engagement Score > 100",
+      "action": "Update Lead Status to 'Hot Lead'"
+    }
+  ],
+  "setup_instructions": [
+    "1. Create new Airtable base named 'Email Campaign Manager'",
+    "2. Create all 6 tables in the order listed above",
+    "3. Add fields to each table as specified",
+    "4. Set up linked record relationships between tables",
+    "5. Configure formulas and rollups",
+    "6. Create views for each table",
+    "7. Set up automations (optional but recommended)",
+    "8. Generate Personal Access Token from airtable.com/account",
+    "9. Copy Base ID from base URL (starts with 'app')",
+    "10. Add credentials to n8n workflows"
+  ],
+  "api_access": {
+    "required_scopes": [
+      "data.records:read",
+      "data.records:write",
+      "schema.bases:read"
+    ],
+    "base_id_location": "URL bar when viewing base: https://airtable.com/appXXXXXXXXXXXXXX",
+    "get_table_ids": "View table in API documentation at airtable.com/api"
+  }
+}

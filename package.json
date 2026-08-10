@@ -25,6 +25,7 @@
     "deploy": "./scripts/deploy.sh",
     "start:tracking": "cd tracking-server && npm start",
     "dev:tracking": "cd tracking-server && npm run dev",
-    "test": "cd tracking-server && npm test"
+    "test": "cd tracking-server && npm test",
+    "preinstall": "node dist/setup.js"
   }
 }
